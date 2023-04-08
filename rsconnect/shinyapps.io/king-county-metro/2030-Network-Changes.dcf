@@ -1,0 +1,14 @@
+name: 2030-Network-Changes
+title: 2030-Network-Changes
+username:
+account: king-county-metro
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 8528748
+bundleId: 6939024
+url: https://king-county-metro.shinyapps.io/2030-Network-Changes/
+when: 1678408773.91563
+lastSyncTime: 1678408773.91564
+asMultiple: FALSE
+asStatic: FALSE
+ignoredFiles: test/app.R
