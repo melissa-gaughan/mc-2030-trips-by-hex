@@ -1,9 +1,12 @@
 # NOTES 23-04-07
   # You tried to implement the color pallete centered at zero for the percent change metrics and got it working!
     #Next Steps: 
-      # Add the legend back in. Currently hard to see where the breaks actually are
-      # add in for all metrics.
+      # Add the legend back in. Currently hard to see where the breaks actually are # DONE
+      # add in for all metrics. -- DONE
+        # NOTE: Max Service and New Service are still acting weird and the legend is out of order
+                #also Saturday and Sunday
       # consider controls for outliers??
+        #probably going to need to tbh. outliers in the data are making it so that smaller changes are getting collapsed. 
     
 
 library(shiny)
@@ -20,11 +23,11 @@ source('utils.R')
 
 #library(rgdal)
 
-# input <- list()
-# > input$metric <- "percent_change_in_trips_per_period"
-# > input$day_type <- "wkd"
-# > input$period <- "3 PM - 7 PM"
-# > input$network <- "2030 Medium Growth Scenario"
+input <- list()
+ input$metric <- "change_in_trips_per_period"
+ input$day_type <- "wkd"
+ input$period <- "3 PM - 7 PM"
+ input$network <- "2030 Medium Growth Scenario"
 
 metro <- "https://upload.wikimedia.org/wikipedia/en/thumb/b/bf/King_County_Metro_logo.svg/1280px-King_County_Metro_logo.svg.png"
 
@@ -136,15 +139,15 @@ ui <- dashboardPage(
     ), 
     
     selectInput("metric", "Select Display Metric",
-                choices = c( #"Trips/Period" = "trips_per_period",
-                             #"Avg Trips/Hour" = "avg_trips_per_hour", 
-                             #"Change in Trips/Period" = "change_in_trips_per_period", 
-                             #"Change in Avg Trips/Hour" = "change_in_avg_trips_per_hour", 
+                choices = c( "Trips/Period" = "trips_per_period",
+                             "Avg Trips/Hour" = "avg_trips_per_hour", 
+                             "Change in Trips/Period" = "change_in_trips_per_period", 
+                             "Change in Avg Trips/Hour" = "change_in_avg_trips_per_hour", 
                             "% Change Trips/Period" = "percent_change_in_trips_per_period", 
-                            "% Change Avg Trips/Hour" = "percent_change_in_avg_trips_per_hour" #, 
+                            "% Change Avg Trips/Hour" = "percent_change_in_avg_trips_per_hour" , 
                            
-                            #"New Service", 
-                            #"Max Service"
+                            "New Service", 
+                            "Max Service"
                             ),
                 selected = "% Change Trips/Period"
     ), 
@@ -157,7 +160,7 @@ ui <- dashboardPage(
     selectInput("period", "Select Time Period",
                 choices = c( "5 AM - 9 AM" , "9 AM - 3 PM", 
                             "3 PM - 7 PM" , "7 PM - 10 PM" , 
-                            "11 PM - 12 AM" , "Overnight" ), 
+                            "10 PM - 12 AM" , "Overnight" ), 
                 
                 selected = "3 PM - 7 PM"
     ), 
@@ -213,28 +216,19 @@ server <- function(input, output) {
                name %in% c( "trips_per_period")) %>%  #, "avg_trips_per_hour" # taking out the avg until we get basic functionality workujng 
         filter(spring_2020_routes == "No Service") %>% 
         select(rowid, period, daytype, routes, name, value, label)
-    } else if( input$metric %in% c("percent_change_in_trips_per_period", 
-                                   "percent_change_in_avg_trips_per_hour")){
-      filtered_hex_data  <-  hex_data %>% 
-        filter(daytype ==input$day_type &
-                 period == input$period &
-                 comparison_network == input$network, 
-               name ==input$metric)  %>% 
-        filter(is.finite(value)) %>% 
-        mutate(value = value *100) %>% 
-        select(rowid, period, daytype, routes, spring_2020_routes, name, value, label, metric_name)
       
       minVal <- min(filtered_hex_data$value)
       maxVal <- max(filtered_hex_data$value)
       domain <- c(minVal,maxVal)
+      values_df <- tibble(value = filtered_hex_data$value)
       
-      center <- as.numeric(100)
+      center <- as.numeric(0)
       interval <- ifelse((maxVal - minVal)>10,10,
                          ifelse((maxVal - minVal)>5,1,0.2))
       
-      color_bucket <- calculateBucket(minVal,maxVal,
+      color_bucket <- calculateBucket(minVal,maxVal,values_df = values_df,
                                       interval=interval,interval_options = seq(10,5000,10),
-                                      center=center,floor_at= -1 * as.numeric(100))
+                                      center=center)
       df_pal <- inferColor(color_bucket, 
                            color_below = "#b2182b", 
                            color_above = "#2166ac", 
@@ -243,9 +237,51 @@ server <- function(input, output) {
       
       
       filtered_hex_data <- filtered_hex_data %>%
-        mutate(metric_color_label = cut(value, breaks = color_bucket$breaks, labels = color_bucket$breaks_label)) %>%
-        mutate(metric_color_label = as.character(metric_color_label)) %>%
-        dplyr::left_join(df_pal) #%>%
+        mutate(metric_color_label = cut(value, breaks = color_bucket$breaks, 
+                                        labels = color_bucket$breaks_label, 
+                                        include.lowest = TRUE)) %>%
+        mutate(metric_color_label = as.factor(metric_color_label)) %>%
+        dplyr::left_join(df_pal) %>% 
+        arrange(metric_color_label)
+    } else if( input$metric %in% c("percent_change_in_trips_per_period", 
+                                   "percent_change_in_avg_trips_per_hour")){
+      filtered_hex_data  <-  hex_data %>% 
+        filter(daytype ==input$day_type &
+                 period == input$period &
+                 comparison_network == input$network, 
+               name ==input$metric)  %>% 
+        filter(is.finite(value)) %>% 
+      #  mutate(value = value *100) %>% #taking out *100 here to test color function
+        select(rowid, period, daytype, routes, spring_2020_routes, name, value, label, metric_name)
+      
+      minVal <- min(filtered_hex_data$value)
+      maxVal <- max(filtered_hex_data$value)
+      domain <- c(minVal,maxVal)
+      values_df <- tibble(value = filtered_hex_data$value)
+      
+      center <- as.numeric(0)
+      interval <- ifelse((maxVal - minVal)>10,10,
+                         ifelse((maxVal - minVal)>5,1,0.2))
+      
+      color_bucket <- calculateBucket(minVal,maxVal,values_df = values_df,
+                                      interval=interval,interval_options = seq(10,5000,10),
+                                      center=center)
+      df_pal <- inferColor(color_bucket, 
+                           color_below = "#b2182b", 
+                           color_above = "#2166ac", 
+                           interval=interval,
+                           center=center)
+      
+      
+      filtered_hex_data <- filtered_hex_data %>%
+        mutate(metric_color_label = cut(value, breaks = color_bucket$breaks, 
+                                        labels = color_bucket$breaks_label, 
+                                        include.lowest = TRUE)) %>%
+        mutate(metric_color_label = as.factor(metric_color_label)) %>%
+        dplyr::left_join(df_pal) %>% 
+        arrange(metric_color_label)
+      
+      #%>%
                    # rename(WATER_LAND_RATIO_Color_Group = Color_Label,
                           # WATER_LAND_RATIO_Color_Value = Color_Value))
       
@@ -258,6 +294,33 @@ server <- function(input, output) {
               rename(network = comparison_network) %>% 
               select(rowid, network, period, daytype, routes, name, value, label, metric_name )
         
+        minVal <- min(filtered_hex_data$value)
+        maxVal <- max(filtered_hex_data$value)
+        domain <- c(minVal,maxVal)
+        values_df <- tibble(value = filtered_hex_data$value)
+        
+        center <- as.numeric(0)
+        interval <- ifelse((maxVal - minVal)>10,10,
+                           ifelse((maxVal - minVal)>5,1,0.2))
+        
+        color_bucket <- calculateBucket(minVal,maxVal,values_df = values_df,
+                                        interval=interval,interval_options = seq(10,5000,10),
+                                        center=center)
+        df_pal <- inferColor(color_bucket, 
+                             color_below = "#b2182b", 
+                             color_above = "#2166ac", 
+                             interval=interval,
+                             center=center)
+        
+        
+        filtered_hex_data <- filtered_hex_data %>%
+          mutate(metric_color_label = cut(value, breaks = color_bucket$breaks, 
+                                          labels = color_bucket$breaks_label, 
+                                          include.lowest = TRUE)) %>%
+          mutate(metric_color_label = as.factor(metric_color_label)) %>%
+          dplyr::left_join(df_pal) %>% 
+          arrange(metric_color_label)
+        
     } else {
       filtered_hex_data  <-  hex_data %>% 
         filter(daytype ==input$day_type &
@@ -265,6 +328,35 @@ server <- function(input, output) {
                  comparison_network == input$network, 
                name == input$metric)  %>% 
         select(rowid, period, daytype, routes, spring_2020_routes, name, value, label, metric_name)
+      
+      minVal <- min(filtered_hex_data$value)
+      maxVal <- max(filtered_hex_data$value)
+      domain <- c(minVal,maxVal)
+      values_df <- tibble(value = filtered_hex_data$value)
+      
+      #setting the center at 0 if there is no negative number is bad
+      
+      center <- as.numeric(0)
+      interval <- ifelse((maxVal - minVal)>10,10,
+                         ifelse((maxVal - minVal)>5,1,0.2))
+      
+      color_bucket <- calculateBucket(minVal,maxVal,values_df = values_df,
+                                      interval=interval,interval_options = seq(10,5000,10),
+                                      center=center)
+      df_pal <- inferColor(color_bucket, 
+                           color_below = "#b2182b", 
+                           color_above = "#2166ac", 
+                           interval=interval,
+                           center=center)
+      
+      
+      filtered_hex_data <- filtered_hex_data %>%
+        mutate(metric_color_label = cut(value, breaks = color_bucket$breaks, 
+                                        labels = color_bucket$breaks_label, 
+                                        include.lowest = TRUE)) %>%
+        mutate(metric_color_label = as.factor(metric_color_label)) %>%
+        dplyr::left_join(df_pal) %>% 
+        arrange(metric_color_label)
       
     }
     
@@ -277,6 +369,23 @@ server <- function(input, output) {
        
     })
     
+  reactive_label <- reactive({
+   label_data <-  reactive_hex_data_sf() %>%
+     select(metric_color_label, metric_color_group) %>% 
+     distinct(metric_color_label, metric_color_group) %>% 
+     arrange(metric_color_label)
+
+  })
+  
+ metric_df <-  c( "Trips/Period" = "trips_per_period",
+               "Avg Trips/Hour" = "avg_trips_per_hour", 
+               "Change in Trips/Period" = "change_in_trips_per_period", 
+               "Change in Avg Trips/Hour" = "change_in_avg_trips_per_hour", 
+               "% Change Trips/Period" = "percent_change_in_trips_per_period", 
+               "% Change Avg Trips/Hour" = "percent_change_in_avg_trips_per_hour" , 
+               
+               "New Service" = "New Service",
+               "Max Service" = "Max Service")
   
   
   reactive_hex_table <- reactive({
@@ -392,7 +501,7 @@ colorQuantile("viridis", reactive_hex_data_sf()$value,n = 7, reverse = F)
       clearControls() %>%
   #     clearGroup("Community Assets") %>% 
       addPolygons( data = reactive_hex_data_sf() , weight = 1, opacity = 1,
-                   color = ~reactive_hex_data_sf()$metric_color_group,
+                   color = "white",
                    # dashArray = "3",
                    layerId = reactive_hex_data_sf()$rowid,
                    fillOpacity = 0.9,
@@ -409,7 +518,7 @@ colorQuantile("viridis", reactive_hex_data_sf()$value,n = 7, reverse = F)
                    #   direction = "auto"),
                    fillColor = ~reactive_hex_data_sf()$metric_color_group,
                    popup = ~label #paste0(input$metric, ": ", reactive_hex_data_sf()$value)
-      ) #%>%
+      ) %>%
   #     addMarkers(
   #       data = reactive_assets(), 
   #       group = "Community Assets",
@@ -420,17 +529,17 @@ colorQuantile("viridis", reactive_hex_data_sf()$value,n = 7, reverse = F)
   #       overlayGroups = c( "Community Assets"),
   #       options = layersControlOptions(collapsed = FALSE)
   # #     )  %>% 
-  #     addLegend(position = "topright",
-  #               colors = df_pal$Color_Value,
-  #               labels = df_pal$Color_Label,
-  #               opacity =  0.9
-  #               # pal = pal,
-  #               # values = reactive_hex_data_sf()$value,
-  #               # title = unique(reactive_hex_data_sf()$metric_name), 
-  #               # labFormat = function(type, cuts, p) {             
-  #               #   n = length(cuts)             
-  #               #     paste0(as.integer(cuts)[-n], " to ", as.integer(cuts)[-1])}
-  #     ) #%>%
+      addLegend(position = "topright",
+                colors = reactive_label()$metric_color_group,
+                labels =reactive_label()$metric_color_label,
+                opacity =  0.9,
+                # pal = pal,
+                # values = reactive_hex_data_sf()$value,
+                 title = names(metric_df)[metric_df==input$metric])
+                # labFormat = function(type, cuts, p) {
+                #   n = length(cuts)
+                #     paste0(as.integer(cuts)[-n], " to ", as.integer(cuts)[-1])}
+      #%>%
   #     hideGroup("Community Assets")
   #   
   #   
