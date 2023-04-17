@@ -7,6 +7,7 @@
                 #also Saturday and Sunday
       # consider controls for outliers??
         #probably going to need to tbh. outliers in the data are making it so that smaller changes are getting collapsed. 
+#selecting Change with 2020 network causes crash
     
 
 library(shiny)
@@ -23,23 +24,24 @@ source('utils.R')
 
 #library(rgdal)
 
-input <- list()
- input$metric <- "change_in_trips_per_period"
- input$day_type <- "wkd"
- input$period <- "3 PM - 7 PM"
- input$network <- "2030 Medium Growth Scenario"
+# input <- list()
+#  input$metric <- "change_in_trips_per_period"
+#  input$day_type <- "wkd"
+#  input$period <- "3 PM - 7 PM"
+#  input$network <- "2030 Medium Growth Scenario"
 
 metro <- "https://upload.wikimedia.org/wikipedia/en/thumb/b/bf/King_County_Metro_logo.svg/1280px-King_County_Metro_logo.svg.png"
 
 # 
-# hex_data <- readRDS(here::here("data", "2030_hex_comparison.rds")) %>%
-#   # select(-network.y) %>%
-#   # pivot_longer(cols = -c(rowid, comparison_network, routes,
-#   #                        period, daytype, spring_2020_trips_per_period,
-#   #                        spring_2020_hours_in_period, spring_2020_routes,
-#   #                        spring_2020_avg_trips_per_hour)) %>%
+#hex_data_old <- readRDS(here::here("data", "2030_hex_comparison.rds"))
+# hex_data <- readRDS(here::here("data", "2030_hex_comparison_2023-04-11.rds")) %>%
+#   select(-network.y) %>%
+#   pivot_longer(cols = -c(rowid, comparison_network, routes,
+#                          period, daytype, spring_2020_trips_per_period,
+#                          spring_2020_hours_in_period, spring_2020_routes,
+#                          spring_2020_avg_trips_per_hour)) %>%
 #   mutate(metric_name = str_replace_all(name, "_", " "),
-#          metric_name = str_to_title(network_name) ,
+#          metric_name = str_to_title(metric_name) ,
 #          comparison_network_name = str_replace_all(comparison_network, "_", " "),
 #          comparison_network_name = str_to_title(comparison_network_name) ,
 #          ) %>%
@@ -54,10 +56,10 @@ metro <- "https://upload.wikimedia.org/wikipedia/en/thumb/b/bf/King_County_Metro
 #                                            "<b>", "Spring 2020 Routes: ",  "</b> ", spring_2020_routes, "</br>",
 #                                            "</p>")))
 # 
-# saveRDS( hex_data, here::here("data", "2030_hex_comparison.rds"))
+ #saveRDS( hex_data, here::here("data", "2030_hex_comparison_clean.rds"))
 
 
-hex_data <- readRDS(here::here("data", "2030_hex_comparison.rds"))
+hex_data <- readRDS(here::here("data", "2030_hex_comparison_clean.rds"))
 
 hex_grid <- readRDS(here::here("data", "filtered_hex_grid.rds")) %>% 
   st_transform(4326)
@@ -504,12 +506,12 @@ colorQuantile("viridis", reactive_hex_data_sf()$value,n = 7, reverse = F)
                    color = "white",
                    # dashArray = "3",
                    layerId = reactive_hex_data_sf()$rowid,
-                   fillOpacity = 0.9,
+                   fillOpacity = 0.8,
                    highlightOptions = highlightOptions(
                      weight = 5,
                      color = "#666",
                      #dashArray = "",
-                     fillOpacity = 0.9,
+                     fillOpacity = 0.8,
                      bringToFront = TRUE),
                  #  label = ~accessibility,
                    # labelOptions = labelOptions(
@@ -532,7 +534,7 @@ colorQuantile("viridis", reactive_hex_data_sf()$value,n = 7, reverse = F)
       addLegend(position = "topright",
                 colors = reactive_label()$metric_color_group,
                 labels =reactive_label()$metric_color_label,
-                opacity =  0.9,
+                opacity =  0.8,
                 # pal = pal,
                 # values = reactive_hex_data_sf()$value,
                  title = names(metric_df)[metric_df==input$metric])

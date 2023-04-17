@@ -27,11 +27,11 @@ calculateBucket <- function(min_val,max_val, values_df,  max_bin=10,interval=10,
     
   }else if (min_val * max_val >= 0){ #changed this to not reference rounded values as it was causing issues with situations where 1 was getting rounded down to 0
     ## when both are negative/positive/invovles 0
-    # delta <- max_val_round - min_val_round
-    # 
-    # num_bin <- ceiling(delta / interval_options)
-    # res_idx <- which(num_bin < max_bin)[1]
-    # interval_plot <- interval_options[res_idx]
+    delta <- max_val_round - min_val_round
+
+    num_bin <- ceiling(delta / interval_options)
+    res_idx <- which(num_bin < max_bin)[1]
+    interval_plot <- interval_options[res_idx]
     # 
     # # the range (max_val_round - min_val_round) needs to be adjusted to be a multiple of interval
     # # then we do a shift to get the adjusted upper bound: adjusted range + min
@@ -147,7 +147,7 @@ inferColor <- function(color_bucket,color_below='#e34a33',color_above='#2166ac',
     }
     
     return(data.frame(metric_color_group = color_val,
-                      metric_color_label = color_bucket$breaks_label,
+                      metric_color_label = as.factor(color_bucket$breaks_label),
                       stringsAsFactors = F))
     
   }else{
