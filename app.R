@@ -4,13 +4,14 @@
       # Add the legend back in. Currently hard to see where the breaks actually are # DONE
       # add in for all metrics. -- DONE
         # NOTE: Max Service and New Service are still acting weird and the legend is out of order
-                #also Saturday and Sunday
+                #also Saturday and Sunday --DONE
       # consider controls for outliers??
         #probably going to need to tbh. outliers in the data are making it so that smaller changes are getting collapsed. 
 #selecting Change with 2020 network causes crash
 
 #NOTES 23-04-18
-  # You need to filter the 2020 GTFS to get post SC data. 
+  # You need to filter the 2020 GTFS to get post SC data. --This actually ended up being ok because the 201 GTFS that you reference starts at the 
+  #service change and goes through April 2020. 
     
 
 library(shiny)
