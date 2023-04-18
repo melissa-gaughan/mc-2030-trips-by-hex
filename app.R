@@ -8,6 +8,9 @@
       # consider controls for outliers??
         #probably going to need to tbh. outliers in the data are making it so that smaller changes are getting collapsed. 
 #selecting Change with 2020 network causes crash
+
+#NOTES 23-04-18
+  # You need to filter the 2020 GTFS to get post SC data. 
     
 
 library(shiny)
@@ -64,7 +67,8 @@ hex_data <- readRDS(here::here("data", "2030_hex_comparison_clean.rds"))
 hex_grid <- readRDS(here::here("data", "filtered_hex_grid.rds")) %>% 
   st_transform(4326)
 
-
+routes <- readRDS(here::here("data", "mc_2030_and_201_routes.rds")) %>% 
+  st_transform(4326)
 
 # Define UI 
 #UI #####
@@ -95,7 +99,7 @@ body <- dashboardBody(
       });
     ')),
   
-  #####
+  # tabs #####
   tabItems( 
     # First tab content
     tabItem(tabName = "hexagons", 
@@ -103,9 +107,6 @@ body <- dashboardBody(
             fluidRow(
               column(width = 12,  
                      box( id = "map_container", width = NULL, solidHeader = TRUE,
-                        
-                          
-                          
                            leaflet::leafletOutput("metric_map"))))
     )
     ,
@@ -114,7 +115,14 @@ body <- dashboardBody(
               column(width = 12,
                      box( id = "map_container_1", width = NULL, solidHeader = TRUE,
                           dataTableOutput('mytable'))))
+    ), 
+    tabItem(tabName = "data_dictionary",
+            fluidRow(
+              column(width = 12,
+                     box( id = "map_container_2", width = NULL, solidHeader = TRUE,
+                          includeMarkdown("help.md"))))
     )
+    
   
 ) 
 
@@ -128,7 +136,9 @@ ui <- dashboardPage(
     sidebarMenu(
       id = "tabs",
       menuItem("Hexagons", tabName = "hexagons", icon = icon("stroopwafel")),
-      menuItem("Table", tabName = "block_groups", icon = icon("object-ungroup"))
+      menuItem("Table", tabName = "block_groups", icon = icon("object-ungroup")), 
+      menuItem("Data Dictionary", tabName = "data_dictionary", icon = icon("circle-question"))
+      
     ),
     
     
@@ -139,6 +149,7 @@ ui <- dashboardPage(
                             "High Growth MC 2030" = "2030 High Growth Scenario"),
                 selected = "2030 Medium Growth Scenario"
     ), 
+
     
     selectInput("metric", "Select Display Metric",
                 choices = c( "Trips/Period" = "trips_per_period",
@@ -166,7 +177,10 @@ ui <- dashboardPage(
                 
                 selected = "3 PM - 7 PM"
     ), 
-    
+    selectInput("routes",
+                "Routes (Display Only)",
+                choices = NULL, 
+                multiple = TRUE),
     actionButton("recalc", "Update Map & Filters")
     ), 
   
@@ -194,6 +208,10 @@ server <- function(input, output) {
   #   animation = TRUE
   # )
   # 
+  
+  output$markdown <- renderUI({
+    HTML(markdown::markdownToHTML('help.md'))
+  })
   #reactive functions #####
   
   
@@ -436,41 +454,45 @@ server <- function(input, output) {
   })
   
   
+  # update routes to correspond to network selected
+  observeEvent(input$network, {
+    #req(input$network)
+    #freezeReactiveValue(input, "routes")
+    
+    if(input$network == "Spring 2020"){
+      network_routes <- routes %>% 
+        filter(network == input$network) %>% 
+        mutate(route_short_name = as.numeric(route_short_name)) %>% 
+        filter(route_short_name < 500 | route_short_name %in% c(671:677))
+      choices <- as.character(sort(unique( network_routes$route_short_name)))
+      updateSelectInput( inputId = "routes", choices = choices)
+    }else{
+    
+      network_routes <- routes %>% 
+        filter(network == input$network)
+      choices <- sort(unique( network_routes$route_short_name))
+      updateSelectInput( inputId = "routes", choices = choices)
+    }
+  })
+  
+  
+  reactive_routes <- reactive({
+    req(input$routes)
+    
+    filtered_routes <- routes %>%
+      filter(network == input$network ) %>% 
+      filter(route_short_name %in% input$routes) 
+    
+  })
+  
+  
+  
  
   
   output$mytable = renderDataTable(reactive_hex_table())
  
   
-  colorpal <- reactive({
-    
-colorQuantile("viridis", reactive_hex_data_sf()$value,n = 7, reverse = F)
-    
-    
-    # if( input$metric == "trips_per_period"){
-    #   colorBin("viridis", reactive_hex_data_sf()$trips_per_period, reverse = F)
-    #   
-    # } else if ( input$metric == "avg_trips_per_hour"){
-    #   colorBin("viridis", reactive_hex_data_sf()$avg_trips_per_hour, reverse = F)
-    #   
-    # } else if ( input$metric == "change_in_trips_per_period"){
-    #   colorBin("viridis", reactive_hex_data_sf()$change_in_trips_per_period, reverse = F) 
-    #   
-    # } else if ( input$metric == "change_in_avg_trips_per_hour"){
-    #   colorBin("viridis", reactive_hex_data_sf()$change_in_avg_trips_per_hour, reverse = F) 
-    #   
-    # } else if ( input$metric == "percent_change_in_trips_per_period"){
-    #   colorBin("viridis", reactive_hex_data_sf()$percent_change_in_trips_per_period, reverse = F)
-    # } else if ( input$metric == "percent_change_in_avg_trips_per_hour"){
-    #   colorBin("viridis", reactive_hex_data_sf()$percent_change_in_avg_trips_per_hour, reverse = F)
-    # } else if ( input$metric == "New Service"){
-    #     colorBin("viridis", reactive_hex_data_sf()$trips_per_period, reverse = F)
-    # } else if ( input$metric == "Max Service"){      
-    #   colorBin("viridis", reactive_hex_data_sf()$trips_per_period, reverse = F)}
-      
-   
-
-  })
-  
+ 
   # 
   # # map functions #####
   output$metric_map <- renderLeaflet({
@@ -496,55 +518,42 @@ colorQuantile("viridis", reactive_hex_data_sf()$value,n = 7, reverse = F)
   # # an observer. Each independent set of things that can change
   # # should be managed in its own observer.   # Change Routes #####
   observeEvent(input$recalc ,{
-    pal <- colorpal()
+   # pal <- colorpal()
     #input$recalc,
     proxy <-  leafletProxy("metric_map") %>%
       clearShapes() %>%
       clearControls() %>%
-  #     clearGroup("Community Assets") %>% 
       addPolygons( data = reactive_hex_data_sf() , weight = 1, opacity = 1,
                    color = "white",
-                   # dashArray = "3",
                    layerId = reactive_hex_data_sf()$rowid,
                    fillOpacity = 0.8,
                    highlightOptions = highlightOptions(
                      weight = 5,
                      color = "#666",
-                     #dashArray = "",
                      fillOpacity = 0.8,
                      bringToFront = TRUE),
-                 #  label = ~accessibility,
-                   # labelOptions = labelOptions(
-                   #   style = list("font-weight" = "normal", padding = "3px 8px"),
-                   #   textsize = "15px",
-                   #   direction = "auto"),
                    fillColor = ~reactive_hex_data_sf()$metric_color_group,
-                   popup = ~label #paste0(input$metric, ": ", reactive_hex_data_sf()$value)
+                   popup = ~label
       ) %>%
-  #     addMarkers(
-  #       data = reactive_assets(), 
-  #       group = "Community Assets",
-  #       popup = ~paste0(name, " (", assettype, ")")
-  #       #     clusterOptions = markerClusterOptions()
-  #     ) %>% 
-  #     addLayersControl(
-  #       overlayGroups = c( "Community Assets"),
-  #       options = layersControlOptions(collapsed = FALSE)
-  # #     )  %>% 
+      addPolylines(
+        data = reactive_routes(), 
+        color = "black",
+        weight = 3 , 
+        group = "Routes",
+        label = ~route_short_name,
+        popup = ~paste0("<br>Route: ", route_short_name) ) %>% 
+     
+      # addLayersControl(
+      #   overlayGroups = c( "EPA Overlay", "Labels", "Routes"),
+      #   options = layersControlOptions(collapsed = FALSE)
+      # )
+ 
       addLegend(position = "topright",
                 colors = reactive_label()$metric_color_group,
                 labels =reactive_label()$metric_color_label,
                 opacity =  0.8,
-                # pal = pal,
-                # values = reactive_hex_data_sf()$value,
                  title = names(metric_df)[metric_df==input$metric])
-                # labFormat = function(type, cuts, p) {
-                #   n = length(cuts)
-                #     paste0(as.integer(cuts)[-n], " to ", as.integer(cuts)[-1])}
-      #%>%
-  #     hideGroup("Community Assets")
-  #   
-  #   
+               
  }  ,ignoreNULL = FALSE)
   # 
   # 
