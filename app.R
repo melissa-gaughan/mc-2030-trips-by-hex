@@ -496,6 +496,8 @@ server <- function(input, output) {
  
   # 
   # # map functions #####
+  
+  
   output$metric_map <- renderLeaflet({
     # Use leaflet() here, and only include aspects of the map that
     # won't need to change dynamically (at least, not unless the
@@ -518,13 +520,16 @@ server <- function(input, output) {
   # # circles when a new color is chosen) should be performed in
   # # an observer. Each independent set of things that can change
   # # should be managed in its own observer.   # Change Routes #####
-  observeEvent(input$recalc ,{
-   # pal <- colorpal()
-    #input$recalc,
+  observeEvent(( input$recalc ), {
+    #for first load and subsequent when no routes are selected
+    #loads hexes but not routes
+   if(!isTruthy(input$routes) ){
     proxy <-  leafletProxy("metric_map") %>%
-      clearShapes() %>%
+      clearGroup("hexes") %>%
       clearControls() %>%
-      addPolygons( data = reactive_hex_data_sf() , weight = 1, opacity = 1,
+      addPolygons( data = reactive_hex_data_sf() ,
+                   weight = 1, 
+                   opacity = 1,
                    color = "white",
                    layerId = reactive_hex_data_sf()$rowid,
                    fillOpacity = 0.8,
@@ -534,31 +539,78 @@ server <- function(input, output) {
                      fillOpacity = 0.8,
                      bringToFront = TRUE),
                    fillColor = ~reactive_hex_data_sf()$metric_color_group,
-                   popup = ~label
+                   popup = ~label, 
+                   group = "hexes"
       ) %>%
+      
+      addLegend(position = "topright",
+                colors = reactive_label()$metric_color_group,
+                labels = reactive_label()$metric_color_label,
+                opacity =  0.8,
+                 title = names(metric_df)[metric_df==input$metric])
+   } else {
+     proxy <-  leafletProxy("metric_map") %>%
+       clearGroup("hexes") %>%
+       clearGroup("Routes") %>%
+       clearControls() %>%
+       addPolygons( data = reactive_hex_data_sf() ,
+                    weight = 1, 
+                    opacity = 1,
+                    color = "white",
+                    layerId = reactive_hex_data_sf()$rowid,
+                    fillOpacity = 0.8,
+                    highlightOptions = highlightOptions(
+                      weight = 5,
+                      color = "#666",
+                      fillOpacity = 0.8,
+                      bringToFront = TRUE),
+                    fillColor = ~reactive_hex_data_sf()$metric_color_group,
+                    popup = ~label, 
+                    group = "hexes"
+       ) %>%
+       addPolylines(
+         data = reactive_routes(), 
+         color = "black",
+         weight = 3 , 
+         group = "Routes",
+         label = ~route_short_name,
+         popup = ~paste0("<br>Route: ", route_short_name) ) %>%
+       
+       addLegend(position = "topright",
+                 colors = reactive_label()$metric_color_group,
+                 labels = reactive_label()$metric_color_label,
+                 opacity =  0.8,
+                 title = names(metric_df)[metric_df==input$metric])
+   }
+               
+ }  ,ignoreNULL = FALSE)
+
+  # 
+  # 
+ 
+  
+  observeEvent( input$routes,  {
+    #for changing routes without messing with metrics
+    #if/else logic controls for when no routes are selected (clears map of routes)
+   
+    if(isTruthy(input$routes)){
+    proxy <-  leafletProxy("metric_map") %>%
+      clearGroup("Routes") %>%
       addPolylines(
         data = reactive_routes(), 
         color = "black",
         weight = 3 , 
         group = "Routes",
         label = ~route_short_name,
-        popup = ~paste0("<br>Route: ", route_short_name) ) %>% 
-     
-      # addLayersControl(
-      #   overlayGroups = c( "EPA Overlay", "Labels", "Routes"),
-      #   options = layersControlOptions(collapsed = FALSE)
-      # )
- 
-      addLegend(position = "topright",
-                colors = reactive_label()$metric_color_group,
-                labels =reactive_label()$metric_color_label,
-                opacity =  0.8,
-                 title = names(metric_df)[metric_df==input$metric])
-               
- }  ,ignoreNULL = FALSE)
-  # 
-  # 
- 
+        popup = ~paste0("<br>Route: ", route_short_name) ) 
+    } else{
+      proxy <-  leafletProxy("metric_map") %>%
+        clearGroup("Routes")
+    }
+    
+  }  ,ignoreNULL = FALSE)
+  
+  
   
   
 }
